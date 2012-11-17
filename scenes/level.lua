@@ -45,6 +45,7 @@ local bird_accel   = 0
 
 local beep = love.audio.newSource("resources/beep.wav", "static")
 local tone = love.audio.newSource("resources/tone.wav", "static")
+local collect = love.audio.newSource("resources/collect.wav", "static")
 local beep_last_time = 0
 
 
@@ -63,7 +64,7 @@ water:setTangentialAcceleration(3, 20)
 water:setColors(255,255,255,255,
   255,255,255,0)
 water:stop()
-water:start()
+--water:start()
 
 local fish_body =
 {
@@ -297,6 +298,7 @@ function Level:update(dt)
       eaten = eaten + 1       
       health_decay = health_decay + 0.1
       game_state = 'climbing'
+      love.audio.play(collect)
       game_time = 0
       water:setPosition(w/2-100, h/2-100)
       water:start()
@@ -310,6 +312,10 @@ function Level:update(dt)
   elseif game_state == 'fish_in_water' then
 
     health = health - health_decay
+
+    if health <= 0 then
+      StateStack.pop()
+    end
 
     fish_alpha = math.min(255, fish_alpha + 1)
 
@@ -328,12 +334,16 @@ function Level:update(dt)
       love.audio.stop(beep)
       time_in_tone = time_in_tone + dt
 
-      if time_in_tone > 1 then
-        dive_distance = distance(fish_x, fish_y, bird_x, bird_y)
-        print('dive start ' .. tostring(dive_distance))
-        game_state = 'diving'
-        tone:stop()
-        game_time = 0
+      if time_in_tone > 0.3 then
+
+        if  love.joystick.isDown(2, 11) and 
+            love.joystick.isDown(2, 12) then
+          dive_distance = distance(fish_x, fish_y, bird_x, bird_y)
+          print('dive start ' .. tostring(dive_distance))
+          game_state = 'diving'
+          tone:stop()
+          game_time = 0
+        end
       end
 
     else
@@ -552,10 +562,13 @@ function Level:draw()
 
 
   if StateStack.debug then   
+
     love.graphics.setFont(font_eaten) 
-    love.graphics.printf(string.format("State: %s\nWings: %g %g\nTurn %g\nAccel: %g\nFish DX: %g\nFish DY: %g\nTarget: %g",
-      game_state, wing_l, wing_r, rotation, bird_accel, fish_dx, fish_dy, fish_target_d),
+    love.graphics.printf(string.format("State: %s\nWings: %g %g\nTurn %g\nAccel: %g\nFish DX: %g\nFish DY: %g\nTarget: %g\nButtons: %s",
+      game_state, wing_l, wing_r, rotation, bird_accel, fish_dx, fish_dy, fish_target_d, buttons),
       25, 75, 400, "left")
+
+    
   end
 
 

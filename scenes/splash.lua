@@ -1,5 +1,5 @@
 local res = "resources/splash/manifest.lua"
-local delay = 2
+local delay = 1
 
 return CutScene.load(res,
   -- The animation itself
@@ -13,9 +13,9 @@ return CutScene.load(res,
     c:setCaption("Programming: Marc O'Morain", Assets.getFont(res, "caption"))
     c:wait(delay)
   end,
+
   -- What to do after termination
   function ()
-    -- StateStack.push(Scene.load("scenes/main_menu.lua"))
-    StateStack.push(Scene.load("scenes/level.lua"))
-
+    StateStack.push(Scene.load("scenes/main_menu.lua"))
+    
   end)
