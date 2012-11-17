@@ -24,6 +24,8 @@ local fish_dy   = 0
 local fish_x_speed = 40
 local fish_y_speed = 40
 
+local breath = 0
+
 local bird_forward = 20
 local bird_accel   = 0
 
@@ -74,19 +76,37 @@ local wing_in =
   }
 }
 
+local bird_body = 
+{
+  {
+    0, -3,
+    0.5, -3,
+    1, -2,
+    0.5, -1,
+    0, -1
+  },
+  {
+    0,-1,
+    0.5, -1,
+    1,2,
+    0.5,5,
+    0,5
+  }
+}
+
 local tail_out =
 {
   {
     0,  5,
-    1,  5,
-    2,  8,
-    1,  8,
+    0.5,  5,
+    1.5,  8,
+    0.5,  8,
     0,  6
   },
   {
-    2,  8,
-    1, 12,
-    1,  8
+    1.5,  8,
+    0.5, 12,
+    0.5,  8
   }
 }
 
@@ -94,14 +114,14 @@ local tail_in =
 {
   {
     0, 5,
-    1, 5,
-    1, 6,
+    0.5, 5,
+    0.5, 6,
     0, 6,
     0, 6
   },
   {
-    1, 6,
-    1, 13,
+    0.5, 6,
+    0.5, 13,
     0, 6,
   }
 }
@@ -185,6 +205,9 @@ function update_rain(dt)
 end
 
 function Level:update(dt)
+
+
+  breath = (breath + dt) % (2*math.pi)
 
   if math.random() < 0.01 then
     fish_angle = math.random() * 2 * math.pi
@@ -329,12 +352,12 @@ function Level:draw()
     local tail_geom  = tail_position(wing_speed)
     local xmax, ymax = find_max(wing_geom)
 
-    love.graphics.setColor(255,255,255, 50)
-    love.graphics.polygon('fill',
-      0, 0,
-      xmax, ymax,
-      xmax, 20,
-      0, 20)
+    -- love.graphics.setColor(255,255,255, 50)
+    -- love.graphics.polygon('fill',
+    --   0, 0,
+    --   xmax, ymax,
+    --   xmax, 20,
+    --   0, 20)
 
     love.graphics.setColor(0,0,0)
     for _,g in ipairs(wing_geom) do
@@ -343,13 +366,23 @@ function Level:draw()
     for _,g in ipairs(tail_geom) do
       love.graphics.polygon(wing_style, g)
     end
-
+    for _,g in ipairs(bird_body) do
+      love.graphics.polygon(wing_style, g)
+    end
   end
 
   love.graphics.setLine(1, 'rough')
   love.graphics.push()    
     love.graphics.translate(bird_x, bird_y)
-    love.graphics.scale(10, 10)
+
+
+
+      local scale = 10 + math.sin(breath)
+
+      love.graphics.scale(scale, scale)
+
+
+
     render_geom(wing_r)
     love.graphics.scale(-1, 1)
     render_geom(wing_l)
