@@ -1,5 +1,6 @@
 StateStack = {
-    states = {}
+    states = {},
+    debug  = false
 }
 
 function StateStack.push(newState)

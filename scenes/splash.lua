@@ -1,5 +1,5 @@
 local res = "resources/splash/manifest.lua"
-local delay = 0.2
+local delay = 2
 
 return CutScene.load(res,
   -- The animation itself
@@ -10,7 +10,7 @@ return CutScene.load(res,
     c:setCaption("GameJam II Entry", Assets.getFont(res, "caption"))
     c:wait(delay)
 
-    c:setCaption("Programming: Stephen Roantree", Assets.getFont(res, "caption"))
+    c:setCaption("Programming: Marc O'Morain", Assets.getFont(res, "caption"))
     c:wait(delay)
   end,
   -- What to do after termination

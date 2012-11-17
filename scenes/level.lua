@@ -13,8 +13,14 @@ local rain_y = 500
 local wing_l = 0
 local wing_r = 0
 local rotation = 0
-local bird_x = w/2
-local bird_y = h/4 + h/2
+local init_bird_x = w/2
+local init_bird_y = h/4 + h/2
+local bird_x = init_bird_x
+local bird_y = init_bird_y
+local health = w
+local health_decay = 0.5
+local eaten  = 0
+local time_in_tone = 0
 
 local fish_x = w/2
 local fish_y = h/2
@@ -23,27 +29,56 @@ local fish_dx   = 0
 local fish_dy   = 0
 local fish_x_speed = 40
 local fish_y_speed = 40
+local fish_target_d = 10000
+
+local game_time = 0
+local fish_alpha = 0
+
+local game_state = 'waiting'
 
 local breath = 0
+local dive_scale = 1
+local dive_distance = 100
 
 local bird_forward = 20
 local bird_accel   = 0
 
+local beep = love.audio.newSource("resources/beep.wav", "static")
+local tone = love.audio.newSource("resources/tone.wav", "static")
+local beep_last_time = 0
+
+
+local font_eaten = love.graphics.newFont("resources/Krungthep.ttf", 15)
+local font_title = love.graphics.newFont("resources/Krungthep.ttf", 36)
+
+local water = love.graphics.newParticleSystem(love.graphics.newImage('resources/water.png'), 80)
+water:setParticleLife(0.5, 4)
+water:setPosition(w/2, h/2)
+water:setEmissionRate(200)
+water:setSizeVariation(0.8)
+water:setSpeed(20,50)
+water:setRadialAcceleration(10,50)
+water:setSpread(2 * math.pi )
+water:setTangentialAcceleration(3, 20)
+water:setColors(255,255,255,255,
+  255,255,255,0)
+water:stop()
+water:start()
 
 local fish_body =
 {
-  0,0,
-  1,1,
-  2,4,
-  1,9,
-  0,11
+  0,-6,
+  1,-5,
+  2,-2,
+  1,3,
+  0,5
 }
 
 local fish_tail =
 {
-  0,11,
-  1,12,
-  0,12,
+  0,5,
+  1,6,
+  0,6,
 }
 
 local wing_out =
@@ -161,6 +196,7 @@ function Level:enter()
   print('level-enter')
   love.graphics.setBackgroundColor(15,13,190)
 
+
 end
 
 function Level:leave()
@@ -204,23 +240,140 @@ function update_rain(dt)
   end
 end
 
-function Level:update(dt)
-
-
-  breath = (breath + dt) % (2*math.pi)
-
-  if math.random() < 0.01 then
-    fish_angle = math.random() * 2 * math.pi
+local function distance(x1,y1,x2,y2)
+    local a = x1-x2
+    local b = y1-y2
+    return math.sqrt(a*a+b*b)
   end
 
-  fish_x = fish_x + dt * math.sin(fish_angle) * fish_x_speed
-  fish_y = fish_y + dt * math.cos(fish_angle) * fish_y_speed
+function Level:update(dt)
 
-  fish_dx = (fish_x - bird_x)
-  fish_dy = (fish_x - bird_y)
+  game_time = game_time + dt
 
-  fish_x = fish_x + (rotation * 0.5)
-  fish_y = fish_y - (bird_accel)
+  breath = (breath + dt*2) % (2*math.pi)
+
+  water:update(dt)
+
+  if game_state == 'waiting' then
+
+    if game_time > 3 then
+      health = w
+      game_state = 'fish_in_water'
+      fish_alpha = 1
+      fish_x = math.random(w)
+      fish_y = math.random(h)
+    end
+
+  elseif game_state == 'climbing' then
+
+    --water:update(dt)
+
+    if (distance(bird_x, bird_y, init_bird_x, init_bird_y) > 2) then
+      bird_x = bird_x + (init_bird_x - bird_x) * dt
+      bird_y = bird_y + (init_bird_y - bird_y) * dt
+    else
+      bird_x = init_bird_x
+      bird_y = init_bird_y
+    end
+
+    if dive_scale < 1 then
+      dive_scale = dive_scale + dt
+
+
+    else
+      game_time = 0
+      bird_x = init_bird_x
+      bird_y = init_bird_y
+      game_state = 'waiting'
+      water:stop()
+      
+    end
+  elseif game_state == 'diving' then
+    fish_x = w/2
+    fish_y = h/2
+
+    local db = distance(fish_x, fish_y, bird_x, bird_y)
+    if db < 50 then
+      eaten = eaten + 1       
+      health_decay = health_decay + 0.1
+      game_state = 'climbing'
+      game_time = 0
+      water:setPosition(w/2-100, h/2-100)
+      water:start()
+    else
+      bird_x = bird_x + ((fish_x - bird_x) * dt)
+      bird_y = bird_y + ((fish_y - bird_y) * dt)
+      dive_scale = math.max(0.3, db/dive_distance)
+    end
+
+    -- move bird to fish
+  elseif game_state == 'fish_in_water' then
+
+    health = health - health_decay
+
+    fish_alpha = math.min(255, fish_alpha + 1)
+
+    beep_last_time = beep_last_time + dt
+
+    fish_target_d = distance(fish_x, fish_y, w/2, h/2)
+
+    local sound_range = 100
+    local tone_range  = 15
+
+
+    if (fish_target_d < tone_range) then
+      --love.audio.rewind()
+      tone:setVolume(1)
+      love.audio.play(tone)
+      love.audio.stop(beep)
+      time_in_tone = time_in_tone + dt
+
+      if time_in_tone > 1 then
+        dive_distance = distance(fish_x, fish_y, bird_x, bird_y)
+        print('dive start ' .. tostring(dive_distance))
+        game_state = 'diving'
+        tone:stop()
+        game_time = 0
+      end
+
+    else
+      time_in_tone = 0
+      tone:stop()
+
+      if (fish_target_d < sound_range) and (beep_last_time > 1) then
+        beep_last_time = 0
+        love.audio.rewind()
+        beep:setVolume((sound_range-fish_target_d)/sound_range)
+        love.audio.play(beep)
+      end
+    end
+
+    if math.random() < 0.005 then
+      fish_angle = math.random() * 2 * math.pi
+    end
+
+    fish_x = fish_x + dt * math.sin(fish_angle) * fish_x_speed
+    fish_y = fish_y + dt * math.cos(fish_angle) * fish_y_speed
+
+    local function clamp1000(value)
+      if value < -1000 then
+        return -1000
+      elseif value > 1000 then
+        return 1000
+      else
+        return value
+      end
+    end
+
+    fish_x = clamp1000(fish_x)
+    fish_y = clamp1000(fish_y)
+
+    fish_dx = (fish_x - bird_x)
+    fish_dy = (fish_x - bird_y)
+
+    fish_x = fish_x + (rotation*2)
+    fish_y = fish_y - (bird_accel * 2)
+  end
 
   local function read_wing(axis)
     local result = love.joystick.getAxis(2,  axis)
@@ -234,7 +387,6 @@ function Level:update(dt)
   wing_r     = read_wing(4)
   rotation   = (wing_l - wing_r) / 2
   bird_accel = (wing_l + wing_r) / 2
-
   update_rain()
 
 end
@@ -242,16 +394,15 @@ end
 
 function Level:draw()
 
+
+  love.graphics.draw(water, 100, 100)
+
+
+
   local function angle(x1,y1,x2,y2)
     local dx = x2 - x1
     local dy = y2 - y1
     return math.atan2(dy, dx) + (math.pi/2)
-  end
-
-  local function distance(x1,y1,x2,y2)
-    local a = x1-x2
-    local b = y1-y2
-    return math.sqrt(a*a+b*b)
   end
 
 
@@ -281,13 +432,14 @@ function Level:draw()
   local wing_style = 'fill' -- 'line'
 
 
-  love.graphics.push()
-    
+  if game_state == 'fish_in_water'  or game_state == 'diving' then
+    love.graphics.push()
     draw_arrow()
-  love.graphics.pop()
+    love.graphics.pop()
 
-  love.graphics.push()
-    love.graphics.setColor(200,170,100)
+
+    love.graphics.push()
+    love.graphics.setColor(200,170,100, fish_alpha)
     love.graphics.translate(fish_x, fish_y)
     love.graphics.scale(5, 5)
     love.graphics.polygon(wing_style, fish_body)
@@ -295,7 +447,8 @@ function Level:draw()
     love.graphics.scale(-1, 1)
     love.graphics.polygon(wing_style, fish_body)
     love.graphics.polygon(wing_style, fish_tail)
-  love.graphics.pop()
+    love.graphics.pop()
+  end
 
   love.graphics.setColor(0, 0, 255)
 
@@ -373,25 +526,65 @@ function Level:draw()
 
   love.graphics.setLine(1, 'rough')
   love.graphics.push()    
-    love.graphics.translate(bird_x, bird_y)
+  love.graphics.translate(bird_x, bird_y)
 
+  local scale = dive_scale * (20 + (1 * math.sin(breath)))
 
+  love.graphics.scale(scale, scale)
 
-      local scale = 10 + math.sin(breath)
-
-      love.graphics.scale(scale, scale)
-
-
-
-    render_geom(wing_r)
-    love.graphics.scale(-1, 1)
-    render_geom(wing_l)
+  render_geom(wing_r)
+  love.graphics.scale(-1, 1)
+  render_geom(wing_l)
   love.graphics.pop()
 
   love.graphics.setColor(255,255,255)
-  love.graphics.printf(string.format("Wings: %g %g\nTurn %g\nAccel: %g\nFish DX: %g\nFish DY: %g",
-    wing_l, wing_r, rotation, bird_accel, fish_dx, fish_dy),
-    25, 25, 400, "left")
+  love.graphics.setFont(font_eaten)
+  love.graphics.printf(string.format("Fish Eaten: %d", eaten), 25, 25, 200, "left")
+
+  if game_time < 3 then
+    
+    love.graphics.setFont(font_title)
+    love.graphics.printf(string.format('%d',4-game_time), w/2-25, h/2, 100, "center")
+  elseif game_time < 4 then
+    love.graphics.setFont(font_title)
+    love.graphics.printf('Fish!', w/2-50, h/2, 100, "center")
+  end
+
+
+  if StateStack.debug then   
+    love.graphics.setFont(font_eaten) 
+    love.graphics.printf(string.format("State: %s\nWings: %g %g\nTurn %g\nAccel: %g\nFish DX: %g\nFish DY: %g\nTarget: %g",
+      game_state, wing_l, wing_r, rotation, bird_accel, fish_dx, fish_dy, fish_target_d),
+      25, 75, 400, "left")
+  end
+
+
+  if game_state == 'fish_in_water' then
+
+    love.graphics.push()
+    love.graphics.translate(w/2, h/2)
+
+    local size_sq = math.max(2, fish_target_d/10)
+
+    local sq_alpha = math.max(255 - fish_target_d * 3, 0)
+
+    love.graphics.setColor(0,255,0,sq_alpha)
+    love.graphics.scale(size_sq, size_sq)
+    love.graphics.polygon('line',
+      -15, -15,
+      -15,  15,
+      15,  15,
+      15, -15)
+    love.graphics.pop()
+
+    love.graphics.setColor(255,255,255, fish_alpha)
+    love.graphics.quad("fill",
+      0, h-20,
+      0, h,
+      health, h,
+      health, h-20)
+  end
+
 end
 
 return Level

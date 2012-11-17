@@ -30,7 +30,9 @@ local paused = false
 local limit  = 0
 
 function love.keypressed(key)
-  if key == "p" then
+  if key == 'd' then
+    StateStack.debug = not StateStack.debug
+  elseif key == "p" then
     paused = not paused
   elseif key == " " and paused then
     limit = limit + 1
